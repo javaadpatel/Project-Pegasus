@@ -4,6 +4,7 @@ const InvestmentFactory = artifacts.require("InvestmentFactory");
 const InvestmentRanking = artifacts.require("InvestmentRanking");
 const Investment = artifacts.require("Investment");
 const moment = require('moment');
+const timeTravelHelper = require("./helpers/truffleTestHelpers");
 
 //chai assertions: https://www.chaijs.com/api/assert/
 
@@ -11,10 +12,7 @@ let investorOne;//= accounts[1];
 let investorTwo;// = accounts[2];
 let investorThree;// = accounts[3];
 let renterOne;// = accounts[4];
-let managerAccountSecretKey;// = accounts[0].secretKey;
 let managerAccountAddress;// = accounts[0].signer.address;
-let deployer;
-let provider;
 let investmentFactoryInstance;
 const INVESTMENTSTATUS_INPROGRESS = "0";
 const INVESTMENTSTATUS_COMPLETED = "1";
@@ -44,6 +42,7 @@ createInvestmentInstance = async (contractAddress) => {
     return await Investment.at(contractAddress);
 }
 
+//Transaction waiting helpers
 const toTxHash = (value) => {
     if (typeof value === "string") {
       // this is probably a tx hash already
@@ -56,28 +55,30 @@ const toTxHash = (value) => {
     }
   }
   
-  const mineTx = (promiseOrTx, interval) => {
-    return Promise.resolve(promiseOrTx)
-      .then(tx => {
-        const txHash = toTxHash(tx);
-  
-        return new Promise((resolve, reject) => {
-          const getReceipt = () => {
-            web3.eth.getTransactionReceipt(txHash, (error, receipt) => {
-              if (error) {
-                reject(error);
-              } else if (receipt) {
-                resolve(receipt);
-              } else {
-                setTimeout(getReceipt, interval || 500);
-              }
-            })
-          }
-  
-          getReceipt();
+const mineTx = (promiseOrTx, interval) => {
+return Promise.resolve(promiseOrTx)
+    .then(tx => {
+    const txHash = toTxHash(tx);
+
+    return new Promise((resolve, reject) => {
+        const getReceipt = () => {
+        web3.eth.getTransactionReceipt(txHash, (error, receipt) => {
+            if (error) {
+            reject(error);
+            } else if (receipt) {
+            resolve(receipt);
+            } else {
+            setTimeout(getReceipt, interval || 500);
+            }
         })
-      });
-  }
+        }
+
+        getReceipt();
+    })
+    });
+}
+
+//Blockchain fast forwarding helpers
 
 createInvestment = async (totalInvestmentCost) => {
     //this must be done because ganache is global so whenever we fast forward in a test then we must adjust the investment deadline 
@@ -105,12 +106,13 @@ createInvestment = async (totalInvestmentCost) => {
 setGanacheToFutureDate = async() => {
     //time elapses and now the investment is FAILED
     var secondsMargin = 900; //this margin is because miners can edit the timestamp by 900 seconds
-    var timeTravelSecondsRequired = parseInt(
-        moment.duration(
-            moment.unix(investmentDetails.deadline).diff(moment())
-            ).asSeconds()
-            ) + secondsMargin;
-    utils.timeTravel(provider, timeTravelSecondsRequired);
+
+    var timeToAdvanceInSeconds = moment.duration(
+        moment.unix(investmentDetails.deadline).diff(moment())
+    ).asSeconds() + secondsMargin;
+    timeToAdvanceInSeconds = parseInt(timeToAdvanceInSeconds);
+
+    await timeTravelHelper.advanceTimeAndBlock(timeToAdvanceInSeconds);
 }
 
 createInvestmentSummaryObject = (rawInvestmentSummary) => {
@@ -168,9 +170,9 @@ getEtherBalanceOfAddress = async (address) => {
     return web3.utils.fromWei(balanceInWei, 'ether');
 }
 
-const shouldRunTimeTravelTests = false;
-const shouldRunInvestmentContractTests = false;
-const shouldRunInvestmentRankingTests = false;
+const shouldRunTimeTravelTests = true;
+const shouldRunInvestmentContractTests = true;
+const shouldRunInvestmentRankingTests = true;
 
 (shouldRunInvestmentContractTests ? describe : describe.skip)('Investment Contract', () => {
     contract("InvestmentFactory", accounts => {
@@ -859,154 +861,133 @@ const shouldRunInvestmentRankingTests = false;
     });
 });
 
-contract("Investment Ranking", accounts => {
-    managerAccountAddress = accounts[0];
-    investorOne = accounts[1];
-    investorTwo = accounts[2];
-    investorThree = accounts[3];
-    renterOne = accounts[4];
-
-    beforeEach(async () => {
-        investmentRankingInstance = await InvestmentRanking.new();
-        investmentFactoryInstance = await InvestmentFactory.new(investmentRankingInstance.address);
-    });
-
-    it('should set investment status to 2 (INVESTMENT FAILED) if deadline expires', async() => {
-        //create invesment
-        await createInvestment();
-
-        //assign invesmentInstance
-        const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
-        const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
-
-        //fast forward time
-        setGanacheToFutureDate();
-
-        await investmentInstance.checkContractStatus();
-        const investmentSummary = createInvestmentSummaryObject(await investmentInstance.getInvestmentSummary());
-        
-        //check investmentStatus
-        assert.equal(investmentSummary.investmentStatus, INVESTMENTSTATUS_FAILED, "Investment should be in FAILED status because it expired");
-    })
-
-});
-
 (shouldRunTimeTravelTests ? describe : describe.skip)('Investment Contract (Time-Travel Tests)', () => {
-    beforeEach(async () => {
-        deployer = new etherlime.EtherlimeGanacheDeployer(managerAccountSecretKey);
-        provider = deployer.provider;
-        managerWallet = new ethers.Wallet(managerAccountSecretKey, provider);
-        investmentRankingInstance = await deployer.deploy(InvestmentRanking);
-        investmentFactoryInstance = await deployer.deploy(InvestmentFactory, false, investmentRankingInstance.contractAddress);
-    });
+    contract("Investment (Time-Travel)", accounts => {
+        managerAccountAddress = accounts[0];
+        investorOne = accounts[1];
+        investorTwo = accounts[2];
+        investorThree = accounts[3];
+        renterOne = accounts[4];
 
-  
+        beforeEach(async () => {
+            investmentRankingInstance = await InvestmentRanking.new();
+            investmentFactoryInstance = await InvestmentFactory.new(investmentRankingInstance.address);
+        });
 
-    it('should refund investors investment if the investment has failed (deadline expired)', async() => {
-        const initialInvestmentEther = '1.5';
-        const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
-        // create investment contract
-        await createInvestment();
+        it('should set investment status to 2 (INVESTMENT FAILED) if deadline expires', async() => {
+            //create invesment
+            await createInvestment();
 
-        //assign invesmentInstance
-        const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
-        const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
+            //assign invesmentInstance
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+            const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
 
-        //initial balance
-        const walletBalanceBeforeInvestment =  await investmentInstance.provider.getBalance(managerAccountAddress);
+            //fast forward time
+            setGanacheToFutureDate();
 
-        //fast forward time
-        var secondsMargin = 900; //this margin is because miners can edit the timestamp by 900 seconds
-        var timeTravelSecondsRequired = parseInt(
-            moment.duration(
-                moment.unix(investmentDetails.deadline).diff(moment())
-                ).asSeconds()
-                ) + secondsMargin;
-        utils.timeTravel(provider, timeTravelSecondsRequired);
+            await investmentInstance.checkContractStatus();
+            const investmentSummary = createInvestmentSummaryObject(await investmentInstance.getInvestmentSummary());
 
-        //first investment
-        await investmentInstance.invest({value: initialInvestmentWei});
-        //balance after investment
-        const walletBalanceAfterInvestment =  await investmentInstance.provider.getBalance(managerAccountAddress);
-        //difference in balance
-        const diffInWalletBalance = walletBalanceBeforeInvestment.sub(walletBalanceAfterInvestment);
-        const diffInWalletBalanceInEther = ethers.utils.formatEther(diffInWalletBalance);
+            //check investmentStatus
+            assert.equal(investmentSummary.investmentStatus, INVESTMENTSTATUS_FAILED, "Investment should be in FAILED status because it expired");
+        });
 
-        //assert that only the gas cost is lost, since the investment must be refunded
-        assert.isBelow(parseFloat(diffInWalletBalanceInEther), 1, "investment contribution should be refunded");
+        it('should refund investors investment if the investment has failed (deadline expired)', async() => {
+            const initialInvestmentEther = '1.5';
+            const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
+            // create investment contract
+            await createInvestment();
 
-        //totalInvestmentContribution should be 0 since the investment failed
-        const [,,,,,,,, _totalInvestmentContributed, _investorCount] = await investmentInstance.getInvestmentSummary();
-        assert.equal(ethers.utils.formatEther(_totalInvestmentContributed), 0,
-            "the total investment should be zero since the investment was unsuccessful");
+            //assign invesmentInstance
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+            const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
 
-        //assert number of investors is zero
-        assert.equal(_investorCount, 0, "there should be no investors since the investment failed");
-    });
+            //initial balance
+            const walletBalanceInEtherBeforeInvestment = await getEtherBalanceOfAddress(managerAccountAddress);
 
-    it('should let investor withdraw investment if the investment is in status (FAILED)', async () => {
-        const initialInvestmentEther = '1.5';
-        const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
-        // create investment contract
-        await createInvestment();
+            //fast forward time
+            await setGanacheToFutureDate();
 
-        //assign invesmentInstance
-        const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
-        const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
+            //first investment
+            await investmentInstance.invest({value: initialInvestmentWei});
+            //balance after investment
+            const walletBalanceInEtherAfterInvestment = await getEtherBalanceOfAddress(managerAccountAddress);
+            //difference in balance
+            const diffInWalletBalanceInEther = walletBalanceInEtherBeforeInvestment - walletBalanceInEtherAfterInvestment;
 
-        //initial balance
-        const walletBalanceBeforeInvestment =  await investmentInstance.provider.getBalance(managerAccountAddress);
+            //assert that only the gas cost is lost, since the investment must be refunded
+            assert.isBelow(parseFloat(diffInWalletBalanceInEther), 1, "investment contribution should be refunded");
 
-        //first investment
-        await investmentInstance.invest({value: initialInvestmentWei});
+            //totalInvestmentContribution should be 0 since the investment failed
+            const investmentSummary = createInvestmentSummaryObject(await investmentInstance.getInvestmentSummary());
+            assert.equal(investmentSummary.totalInvestmentContributed.toString(), 0,
+                "the total investment should be zero since the investment was unsuccessful");
 
-        setGanacheToFutureDate();
+            //assert number of investors is zero
+            assert.equal(investmentSummary.investorCount, 0, "there should be no investors since the investment failed");
+        });
 
-        // console.log("investment status: ", await investmentInstance._investmentStatus());
-        // console.log("total investment cost: ", ethers.utils.formatEther(await investmentInstance._totalInvestmentCost()));
-        // console.log("total investment contributed: ", ethers.utils.formatEther(await investmentInstance._totalInvestmentContributed()));
-        
-        //withdraw investment
-        await investmentInstance.withdrawInvestment();
+        it('should let investor withdraw investment if the investment is in status (FAILED)', async () => {
+            const initialInvestmentEther = '1.5';
+            const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
+            // create investment contract
+            await createInvestment();
 
-        //balance after investment
-        const walletBalanceAfterInvestment =  await investmentInstance.provider.getBalance(managerAccountAddress);
+            //assign invesmentInstance
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+            const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
 
-        //difference in balance
-        const diffInWalletBalance = walletBalanceBeforeInvestment.sub(walletBalanceAfterInvestment);
-        const diffInWalletBalanceInEther = ethers.utils.formatEther(diffInWalletBalance);
-        // console.log("wallet diff: ", parseFloat(diffInWalletBalanceInEther));
-        //assert that only the gas cost is lost, since the investment must be refunded
-        assert.isBelow(parseFloat(diffInWalletBalanceInEther), 1, "investment contribution should be withdrawn");
-    });
+            //initial balance
+            const walletBalanceInEtherBeforeInvestment = await getEtherBalanceOfAddress(managerAccountAddress);
 
-    it('should not let someone who did not invest, withdraw investment', async() => {
-        // create investment contract
-        await createInvestment();
+            //first investment
+            await investmentInstance.invest({value: initialInvestmentWei});
 
-        //assign invesmentInstance
-        const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
-        const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
+            //fast forward blockchain
+            setGanacheToFutureDate();
 
-        //initial balance
-        const walletBalanceBeforeInvestment =  await investmentInstance.provider.getBalance(managerAccountAddress);
+            //withdraw investment
+            await investmentInstance.withdrawInvestment();
 
-         //time elapses and now the investment is FAILED
-        setGanacheToFutureDate();
+            //balance after investment
+            const walletBalanceInEtherAfterInvestment = await getEtherBalanceOfAddress(managerAccountAddress);
 
-         //withdraw investment
-         await investmentInstance.withdrawInvestment();
- 
-         //balance after investment
-         const walletBalanceAfterInvestment =  await investmentInstance.provider.getBalance(managerAccountAddress);
- 
-         //difference in balance
-         const diffInWalletBalance = walletBalanceBeforeInvestment.sub(walletBalanceAfterInvestment);
-         const diffInWalletBalanceInEther = ethers.utils.formatEther(diffInWalletBalance);
- 
-         //assert that only the gas cost is lost, since the investment must be refunded
-         assert.isBelow(parseFloat(diffInWalletBalanceInEther), 1, "investment contribution should not be withdrawn, since person did not invest");
-    });
+            //difference in balance
+            const diffInWalletBalanceInEther = walletBalanceInEtherBeforeInvestment - walletBalanceInEtherAfterInvestment;
 
+            //assert that only the gas cost is lost, since the investment must be refunded
+            assert.isBelow(parseFloat(diffInWalletBalanceInEther), 1, "investment contribution should be withdrawn");
+        });
+
+        it('should not let someone who did not invest, withdraw investment', async() => {
+            // create investment contract
+            await createInvestment();
+
+            //assign invesmentInstance
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+            const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
+
+            //initial balance
+            const walletBalanceBeforeInEtherInvestment = await getEtherBalanceOfAddress(managerAccountAddress);
+
+            //time elapses and now the investment is FAILED
+            setGanacheToFutureDate();
+
+            //withdraw investment
+            await investmentInstance.withdrawInvestment();
     
+            //balance after investment
+            const walletBalanceInEtherAfterInvestment = await getEtherBalanceOfAddress(managerAccountAddress);
+    
+            //difference in balance
+            const diffInWalletBalanceInEther = walletBalanceBeforeInEtherInvestment -  walletBalanceInEtherAfterInvestment;
+    
+            //assert that only the gas cost is lost, since the investment must be refunded
+            assert.isBelow(parseFloat(diffInWalletBalanceInEther), 1, "investment contribution should not be withdrawn, since person did not invest");
+        });
+
+    });
+
 });
+
+
