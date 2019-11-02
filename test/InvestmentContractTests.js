@@ -170,9 +170,9 @@ getEtherBalanceOfAddress = async (address) => {
 
 const shouldRunTimeTravelTests = false;
 const shouldRunInvestmentContractTests = false;
-const shouldRunInvestmentRankingTests = true;
+const shouldRunInvestmentRankingTests = false;
 
-(shouldRunInvestmentContractTests ? describe : describe.skip)('Investment Contract (Time-Travel Tests)', () => {
+(shouldRunInvestmentContractTests ? describe : describe.skip)('Investment Contract', () => {
     contract("InvestmentFactory", accounts => {
         managerAccountAddress = accounts[0];
         investorOne = accounts[1];
@@ -629,6 +629,236 @@ const shouldRunInvestmentRankingTests = true;
     });
 });
 
+(shouldRunInvestmentRankingTests ? describe : describe.skip)('Investment Ranking Contract', () =>{
+    contract("Investment Ranking", accounts => {
+        managerAccountAddress = accounts[0];
+        investorOne = accounts[1];
+        investorTwo = accounts[2];
+        investorThree = accounts[3];
+        renterOne = accounts[4];
+    
+        beforeEach(async () => {
+            investmentRankingInstance = await InvestmentRanking.new();
+            investmentFactoryInstance = await InvestmentFactory.new(investmentRankingInstance.address);
+        });
+    
+        it('should reflect the correct investment ranking contract address', async () =>{
+            //create investment and wait for transaction
+            const createTransaction =   await createInvestment();
+            await mineTx(createTransaction);
+    
+            //get investment ranking contract address
+            const investmentRankingContractAddress = await investmentFactoryInstance.investmentRankingContract();
+    
+            //assert investment details
+            assert.equal(investmentRankingContractAddress, investmentRankingInstance.address, "Should set the correct contract address upon contract creation");
+        });
+    
+        it('should update the contract address', async () => {
+            const createTransaction =   await createInvestment();
+            await mineTx(createTransaction);
+    
+            //update contract address
+            let newAddress = "0xd115bffabbdd893a6f7cea402e7338643ced44a6";
+    
+            await investmentFactoryInstance.updateInvestmentRankingContractAddress(ethers.utils.getAddress(newAddress));
+    
+            const investmentRankingContractAddress = await investmentFactoryInstance.investmentRankingContract();
+    
+            //assert investment details
+            assert.equal(investmentRankingContractAddress.toUpperCase(), newAddress.toUpperCase(), "Should update contract address");
+        });
+    
+        it('should only let manager update contract address', async() => {
+            const createTransaction =   await createInvestment();
+            await mineTx(createTransaction);
+    
+            //update contract address
+            let newAddress = "0xd115bffabbdd893a6f7cea402e7338643ced44a6";
+    
+            await truffleAssert.reverts(
+                investmentFactoryInstance
+                    .updateInvestmentRankingContractAddress(ethers.utils.getAddress(newAddress), {from: accounts[1]}),
+                     "only owner"
+            );
+        });
+    
+        it('should set the correct defaults when creating InvestmentRanking contract', async () => {
+            const a = (await investmentRankingInstance._a()).toNumber();
+            const b = (await investmentRankingInstance._b()).toNumber();
+            const c = (await investmentRankingInstance._c()).toNumber();
+    
+            assert.equal(a, investmentRankingDefaultParameters.a, 'a-coefficient should be set on contract creation');
+            assert.equal(b, investmentRankingDefaultParameters.b, 'b-coefficient should be set on contract creation');
+            assert.equal(c, investmentRankingDefaultParameters.c, 'c-coefficient should be set on contract creation');
+        });
+    
+        function calculateTotalEthAllowed(investorRank){
+            var a = Math.imul(investmentRankingDefaultParameters.a, Math.pow(investorRank, 2));
+            var b = Math.imul(investmentRankingDefaultParameters.b, investorRank);
+            var allowedEth =  a - b + investmentRankingDefaultParameters.c;
+            return allowedEth;
+        }
+    
+        it('should calculate the correct maximum investment ether cap based on rank', async () => {
+            const investorRanks = _.range(1, 6);
+    
+            //assert allowed investment based on rank is calculated correctly
+            await Promise.all(investorRanks.map(async (investorRank) => {
+                const allowedEtherInvestment = web3.utils.fromWei(await investmentRankingInstance.calculateTotalWeiAllowed(investorRank), 'ether');
+        
+                const correctAllowedEth = calculateTotalEthAllowed(investorRank);
+        
+                assert.equal(allowedEtherInvestment, correctAllowedEth, 'calculated ether should be cap should be correct');
+            }));
+        });
+    
+        it('should add investment to InvestmentManager summary', async() => {
+            //create investment
+            const createTransaction =   await createInvestment();
+            await mineTx(createTransaction);
+    
+            //check that investment gets created
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+    
+            const rawInvestmentManagerDetails = await investmentRankingInstance.getInvestmentManager(managerAccountAddress);
+            var investmentManagerDetails = createInvestmentManagerObject(rawInvestmentManagerDetails);
+    
+            //assert investment details
+            assert.isNotEmpty(investmentManagerDetails.investmentAddresses);
+            assert.equal(investmentManagerDetails.rank, 1, "New investor should have a rank of 1");
+        });
+    
+        it('should contain two investments to InvestmentManager summary after creating two investments', async() => {
+            var createTransaction = await createInvestment();
+            await mineTx(createTransaction);
+            createTransaction = await createInvestment();
+            await mineTx(createTransaction);
+    
+            const rawInvestmentManagerDetails = await investmentRankingInstance.getInvestmentManager(managerAccountAddress);
+            var investmentManagerDetails = createInvestmentManagerObject(rawInvestmentManagerDetails);
+    
+            //assert investment details
+            assert.equal(investmentManagerDetails.investmentAddresses.length, 2, 'it should contain two investment contract addresses');
+            assert.equal(investmentManagerDetails.rank, 1, "New investor should have a rank of 1");
+        });
+    
+        it('should restrict (revert) investment manager from creating investments based on their ranking', async () => {
+            await truffleAssert.reverts(
+                createInvestment("100"),
+                     "investment cost exceeds ranking cap"
+            );
+        });
+    
+        it('should calculate the correct total payment across one InvestmentManagers investment', async () => {
+            //setup investment with completed investment
+            const initialInvestmentEther = '10';
+            const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
+            // create investment contract
+            await createInvestment();
+    
+            //assign invesmentInstance
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+            const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
+    
+            //invest complete investment amount
+            await investmentInstance.invest({value: initialInvestmentWei});
+    
+            //send payment of 1 ETH into investment contract
+            const paymentInWei = ethers.utils.parseEther('1');
+            var paymentTxn = await investmentInstance.pay({from: renterOne, value: paymentInWei});
+            await mineTx(paymentTxn);
+    
+            //check that totalPayment has been updated
+            const investmentTotalPayment = await investmentInstance._totalPayments();
+            const totalPayments = await investmentRankingInstance.calculateInvestmentManagersTotalPayments(managerAccountAddress);
+    
+            //assert that money has been received in contract
+            assert.equal(investmentTotalPayment.toString(), totalPayments.toString(), 
+                "Payment amount should be equal to total payment in investment");
+        });
+    
+        it('should return true when rank upgrade is available', async () => {
+            //setup investment with completed investment
+            const initialInvestmentEther = '10';
+            const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
+            // create investment contract
+            await createInvestment();
+    
+            //assign invesmentInstance
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+            const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
+    
+            //invest complete investment amount
+            await investmentInstance.invest({value: initialInvestmentWei});
+    
+            //send payment of 1 ETH into investment contract
+            const paymentInWei = ethers.utils.parseEther('15');
+            var paymentTxn = await investmentInstance.pay({from: renterOne, value: paymentInWei});
+            await mineTx(paymentTxn);
+    
+            const rankUpgradeAvailable = await investmentRankingInstance.isRankUpgradeAvailable(managerAccountAddress);
+    
+            //rank upgrade should be available
+            assert.equal(rankUpgradeAvailable, true, 'a rank upgrade should be available');
+        });
+    
+        it('should return false when rank upgrade is not available', async () => {
+            //setup investment with completed investment
+            const initialInvestmentEther = '10';
+            const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
+            // create investment contract
+            await createInvestment();
+    
+            //assign invesmentInstance
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+            const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
+    
+            //invest complete investment amount
+            await investmentInstance.invest({value: initialInvestmentWei});
+    
+            //send payment of 1 ETH into investment contract
+            const paymentInWei = ethers.utils.parseEther('1');
+            var paymentTxn = await investmentInstance.pay({from: renterOne, value: paymentInWei});
+            await mineTx(paymentTxn);
+    
+            const rankUpgradeAvailable = await investmentRankingInstance.isRankUpgradeAvailable(managerAccountAddress);
+    
+            //rank upgrade should be available
+            assert.equal(rankUpgradeAvailable, false, 'a rank upgrade should not be available');
+        });
+    
+        it('should upgrade rank when enough payments have been received', async () => {
+            //setup investment with completed investment
+            const initialInvestmentEther = '10';
+            const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
+            // create investment contract
+            await createInvestment();
+    
+            //assign invesmentInstance
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+            const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
+    
+            //invest complete investment amount
+            await investmentInstance.invest({value: initialInvestmentWei});
+    
+            //send payment of 1 ETH into investment contract
+            const paymentInWei = ethers.utils.parseEther('15');
+            var paymentTxn = await investmentInstance.pay({from: renterOne, value: paymentInWei});
+            await mineTx(paymentTxn);
+    
+            const rankUpgradeTxn = await investmentRankingInstance.upgradeRankAndPaymentsTotal(managerAccountAddress);
+            await mineTx(rankUpgradeTxn);
+    
+            const rawInvestmentManagerDetails = await investmentRankingInstance.getInvestmentManager(managerAccountAddress);
+            var investmentManagerDetails = createInvestmentManagerObject(rawInvestmentManagerDetails);
+    
+            //rank should be upgraded
+            assert.equal(investmentManagerDetails.rank, 2, 'rank should be upgraded to 2');
+       });
+    });
+});
+
 contract("Investment Ranking", accounts => {
     managerAccountAddress = accounts[0];
     investorOne = accounts[1];
@@ -639,58 +869,6 @@ contract("Investment Ranking", accounts => {
     beforeEach(async () => {
         investmentRankingInstance = await InvestmentRanking.new();
         investmentFactoryInstance = await InvestmentFactory.new(investmentRankingInstance.address);
-    });
-
-    it('should reflect the correct investment ranking contract address', async () =>{
-        //create investment and wait for transaction
-        const createTransaction =   await createInvestment();
-        await mineTx(createTransaction);
-
-        //get investment ranking contract address
-        const investmentRankingContractAddress = await investmentFactoryInstance.investmentRankingContract();
-
-        //assert investment details
-        assert.equal(investmentRankingContractAddress, investmentRankingInstance.address, "Should set the correct contract address upon contract creation");
-    });
-
-    it('should update the contract address', async () => {
-        const createTransaction =   await createInvestment();
-        await mineTx(createTransaction);
-
-        //update contract address
-        let newAddress = "0xd115bffabbdd893a6f7cea402e7338643ced44a6";
-
-        await investmentFactoryInstance.updateInvestmentRankingContractAddress(ethers.utils.getAddress(newAddress));
-
-        const investmentRankingContractAddress = await investmentFactoryInstance.investmentRankingContract();
-
-        //assert investment details
-        assert.equal(investmentRankingContractAddress.toUpperCase(), newAddress.toUpperCase(), "Should update contract address");
-    });
-
-    it('should only let manager update contract address', async() => {
-        const createTransaction =   await createInvestment();
-        await mineTx(createTransaction);
-
-        //update contract address
-        let newAddress = "0xd115bffabbdd893a6f7cea402e7338643ced44a6";
-
-        await truffleAssert.reverts(
-            investmentFactoryInstance
-                .updateInvestmentRankingContractAddress(ethers.utils.getAddress(newAddress), {from: accounts[1]}),
-                 "onlytest owner"
-        );
-    })
-});
-
-
-(shouldRunTimeTravelTests ? describe : describe.skip)('Investment Contract (Time-Travel Tests)', () => {
-    beforeEach(async () => {
-        deployer = new etherlime.EtherlimeGanacheDeployer(managerAccountSecretKey);
-        provider = deployer.provider;
-        managerWallet = new ethers.Wallet(managerAccountSecretKey, provider);
-        investmentRankingInstance = await deployer.deploy(InvestmentRanking);
-        investmentFactoryInstance = await deployer.deploy(InvestmentFactory, false, investmentRankingInstance.contractAddress);
     });
 
     it('should set investment status to 2 (INVESTMENT FAILED) if deadline expires', async() => {
@@ -705,11 +883,24 @@ contract("Investment Ranking", accounts => {
         setGanacheToFutureDate();
 
         await investmentInstance.checkContractStatus();
-        const [ , , , , , , _investmentStatus] = await investmentInstance.getInvestmentSummary();
+        const investmentSummary = createInvestmentSummaryObject(await investmentInstance.getInvestmentSummary());
+        
         //check investmentStatus
-        assert.equal(_investmentStatus, INVESTMENTSTATUS_FAILED, "Investment should be in FAILED status because it expired");
+        assert.equal(investmentSummary.investmentStatus, INVESTMENTSTATUS_FAILED, "Investment should be in FAILED status because it expired");
     })
 
+});
+
+(shouldRunTimeTravelTests ? describe : describe.skip)('Investment Contract (Time-Travel Tests)', () => {
+    beforeEach(async () => {
+        deployer = new etherlime.EtherlimeGanacheDeployer(managerAccountSecretKey);
+        provider = deployer.provider;
+        managerWallet = new ethers.Wallet(managerAccountSecretKey, provider);
+        investmentRankingInstance = await deployer.deploy(InvestmentRanking);
+        investmentFactoryInstance = await deployer.deploy(InvestmentFactory, false, investmentRankingInstance.contractAddress);
+    });
+
+  
 
     it('should refund investors investment if the investment has failed (deadline expired)', async() => {
         const initialInvestmentEther = '1.5';
@@ -819,189 +1010,3 @@ contract("Investment Ranking", accounts => {
 
     
 });
-
-(false ? describe : describe.skip)('Investment Ranking Contract', () =>{
-    beforeEach(async () => {
-        deployer = new etherlime.EtherlimeGanacheDeployer(managerAccountSecretKey);
-        provider = deployer.provider;
-        managerWallet = new ethers.Wallet(managerAccountSecretKey, provider);
-        investmentRankingInstance = await deployer.deploy(InvestmentRanking);
-        investmentFactoryInstance = await deployer.deploy(InvestmentFactory, false, investmentRankingInstance.contractAddress);
-    });
-
-    
-   
-
-    it('should set the correct defaults when creating InvestmentRanking contract', async () => {
-        const a = (await investmentRankingInstance._a()).toNumber();
-        const b = (await investmentRankingInstance._b()).toNumber();
-        const c = (await investmentRankingInstance._c()).toNumber();
-
-        assert.equal(a, investmentRankingDefaultParameters.a, 'a-coefficient should be set on contract creation');
-        assert.equal(b, investmentRankingDefaultParameters.b, 'b-coefficient should be set on contract creation');
-        assert.equal(c, investmentRankingDefaultParameters.c, 'c-coefficient should be set on contract creation');
-    })
-
-    function calculateTotalEthAllowed(investorRank){
-        var a = Math.imul(investmentRankingDefaultParameters.a, Math.pow(investorRank, 2));
-        var b = Math.imul(investmentRankingDefaultParameters.b, investorRank);
-        var allowedEth =  a - b + investmentRankingDefaultParameters.c;
-        return allowedEth;
-    }
-
-    it('should calculate the correct maximum investment ether cap based on rank', async () => {
-        const investorRanks = _.range(1, 6);
-
-        //assert allowed investment based on rank is calculated correctly
-        await Promise.all(investorRanks.map(async (investorRank) => {
-            const allowedEtherInvestment = ethers.utils.formatEther(await investmentRankingInstance.calculateTotalWeiAllowed(investorRank));
-    
-            const correctAllowedEth = calculateTotalEthAllowed(investorRank);
-    
-            assert.equal(allowedEtherInvestment, correctAllowedEth, 'calculated ether should be cap should be correct');
-        }));
-    })
-
-    it('should add investment to InvestmentManager summary', async() => {
-        //create investment
-        const createTransaction =   await createInvestment();
-        await investmentFactoryInstance.verboseWaitForTransaction(createTransaction);
-
-        //check that investment gets created
-        const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
-
-        const rawInvestmentManagerDetails = await investmentRankingInstance.getInvestmentManager(managerAccountAddress);
-        var investmentManagerDetails = createInvestmentManagerObject(rawInvestmentManagerDetails);
-
-        //assert investment details
-        assert.isNotEmpty(investmentManagerDetails.investmentAddresses);
-        assert.equal(investmentManagerDetails.rank, 1, "New investor should have a rank of 1");
-    });
-
-    it('should contain two investments to InvestmentManager summary after creating two investments', async() => {
-        var createTransaction =   await createInvestment();
-        await investmentFactoryInstance.verboseWaitForTransaction(createTransaction);
-        createTransaction =   await createInvestment();
-        await investmentFactoryInstance.verboseWaitForTransaction(createTransaction);
-
-        const rawInvestmentManagerDetails = await investmentRankingInstance.getInvestmentManager(managerAccountAddress);
-        var investmentManagerDetails = createInvestmentManagerObject(rawInvestmentManagerDetails);
-
-        //assert investment details
-        assert.equal(investmentManagerDetails.investmentAddresses.length, 2, 'it should contain two investment contract addresses');
-        assert.equal(investmentManagerDetails.rank, 1, "New investor should have a rank of 1");
-    });
-
-    it('should restrict (revert) investment manager from creating investments based on their ranking', async () => {
-        await assert.revert(
-            createInvestment("100")
-        );
-    })
-
-    it('should calculate the correct total payment across one InvestmentManagers investment', async () => {
-        //setup investment with completed investment
-        const initialInvestmentEther = '10';
-        const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
-        // create investment contract
-        await createInvestment();
-
-        //assign invesmentInstance
-        const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
-        const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
-
-        //invest complete investment amount
-        await investmentInstance.invest({value: initialInvestmentWei});
-
-        //send payment of 1 ETH into investment contract
-        const paymentInWei = ethers.utils.parseEther('1');
-        var paymentTxn = await investmentInstance.from(renterOne).pay({value: paymentInWei});
-        await investmentInstance.verboseWaitForTransaction(paymentTxn);
-
-        //check that totalPayment has been updated
-        const investmentTotalPayment = await investmentInstance._totalPayments();
-        const totalPayments = await investmentRankingInstance.calculateInvestmentManagersTotalPayments(managerAccountAddress);
-
-        //assert that money has been received in contract
-        assert.equal(ethers.utils.formatEther(investmentTotalPayment), ethers.utils.formatEther(totalPayments), 
-            "Payment amount should be equal to total payment in investment");
-    })
-
-    it('should return true when rank upgrade is available', async () => {
-        //setup investment with completed investment
-        const initialInvestmentEther = '10';
-        const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
-        // create investment contract
-        await createInvestment();
-
-        //assign invesmentInstance
-        const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
-        const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
-
-        //invest complete investment amount
-        await investmentInstance.invest({value: initialInvestmentWei});
-
-        //send payment of 1 ETH into investment contract
-        const paymentInWei = ethers.utils.parseEther('15');
-        var paymentTxn = await investmentInstance.from(renterOne).pay({value: paymentInWei});
-        await investmentInstance.verboseWaitForTransaction(paymentTxn);
-
-        const rankUpgradeAvailable = await investmentRankingInstance.isRankUpgradeAvailable(managerAccountAddress);
-
-        //rank upgrade should be available
-        assert.equal(rankUpgradeAvailable, true, 'a rank upgrade should be available');
-    })
-
-    it('should return false when rank upgrade is not available', async () => {
-        //setup investment with completed investment
-        const initialInvestmentEther = '10';
-        const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
-        // create investment contract
-        await createInvestment();
-
-        //assign invesmentInstance
-        const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
-        const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
-
-        //invest complete investment amount
-        await investmentInstance.invest({value: initialInvestmentWei});
-
-        //send payment of 1 ETH into investment contract
-        const paymentInWei = ethers.utils.parseEther('1');
-        var paymentTxn = await investmentInstance.from(renterOne).pay({value: paymentInWei});
-        await investmentInstance.verboseWaitForTransaction(paymentTxn);
-
-        const rankUpgradeAvailable = await investmentRankingInstance.isRankUpgradeAvailable(managerAccountAddress);
-
-        //rank upgrade should be available
-        assert.equal(rankUpgradeAvailable, false, 'a rank upgrade should not be available');
-    })
-
-    it('should upgrade rank when enough payments have been received', async () => {
-         //setup investment with completed investment
-         const initialInvestmentEther = '10';
-         const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
-         // create investment contract
-         await createInvestment();
- 
-         //assign invesmentInstance
-         const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
-         const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
- 
-         //invest complete investment amount
-         await investmentInstance.invest({value: initialInvestmentWei});
- 
-         //send payment of 1 ETH into investment contract
-         const paymentInWei = ethers.utils.parseEther('15');
-         var paymentTxn = await investmentInstance.from(renterOne).pay({value: paymentInWei});
-         await investmentInstance.verboseWaitForTransaction(paymentTxn);
- 
-         const rankUpgradeTxn = await investmentRankingInstance.upgradeRankAndPaymentsTotal(managerAccountAddress);
-         await investmentRankingInstance.verboseWaitForTransaction(rankUpgradeTxn);
-
-         const rawInvestmentManagerDetails = await investmentRankingInstance.getInvestmentManager(managerAccountAddress);
-         var investmentManagerDetails = createInvestmentManagerObject(rawInvestmentManagerDetails);
-
-         //rank should be upgraded
-         assert.equal(investmentManagerDetails.rank, 2, 'rank should be upgraded to 2');
-    })
-})

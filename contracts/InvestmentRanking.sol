@@ -94,7 +94,7 @@ contract InvestmentRanking {
         return totalInvestmentCostInWei;
     }
 
-    function isInvestmentAllowed(address investmentManagerAddress, uint256 investmentCost) public returns (bool){
+    function isInvestmentAllowed(address investmentManagerAddress, uint256 investmentCost) public view returns (bool){
         InvestmentManager memory investmentManager = _investmentManagers[investmentManagerAddress];
         uint8 rank = investmentManager.rank;
         uint256 totalCostAllowed = calculateTotalWeiAllowed(rank);
@@ -152,8 +152,8 @@ contract InvestmentRanking {
 
     function upgradeRankAndPaymentsTotal(address investmentManagerAddress) public {
         //check if rank upgrade is available
-        bool isRankUpgradeAvailable = isRankUpgradeAvailable(investmentManagerAddress);
-        if (isRankUpgradeAvailable){
+        bool rankUpgradeAvailable = isRankUpgradeAvailable(investmentManagerAddress);
+        if (rankUpgradeAvailable){
             uint256 totalInvestmentPaymentsReceived = calculateInvestmentManagersTotalPayments(investmentManagerAddress);
             uint8 newRank = calculateRankBasedOnPayments(totalInvestmentPaymentsReceived); 
 

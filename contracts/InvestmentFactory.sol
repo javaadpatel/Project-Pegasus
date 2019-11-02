@@ -18,7 +18,7 @@ contract InvestmentFactory {
     address public _investmentRankingContractAddress;
 
     modifier onlyManager() {
-        require(msg.sender == _manager);
+        require(msg.sender == _manager, "only owner");
         _;
     }
 
@@ -133,7 +133,7 @@ contract Investment {
     }
 
     modifier onlyManager() {
-        require(msg.sender == _manager);
+        require(msg.sender == _manager, "only owner");
         _;
     }
 
@@ -150,7 +150,7 @@ contract Investment {
         if (_investments[msg.sender] == 0) {
             _investorCount++;
         }
-        
+       
         //ensure that investors cannot overinvest (precaution)
         uint256 currentInvestmentContribution = msg.value;
         uint256 totalInvestmentWithCurrentContribution = _totalInvestmentContributed + currentInvestmentContribution;
@@ -158,7 +158,7 @@ contract Investment {
             uint256 refund = totalInvestmentWithCurrentContribution - _totalInvestmentCost;
             msg.sender.transfer(refund);
             currentInvestmentContribution = currentInvestmentContribution - refund;
-        } 
+        }
 
         //record the investors investment
         _investments[msg.sender] = _investments[msg.sender] + currentInvestmentContribution;
