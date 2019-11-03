@@ -27,6 +27,7 @@ const investmentDetails = {
     totalInvestmentCost: '10.0', //amount of ETH
     title: "Investment Title",
     rationale: "This is a great investment, here's why.",
+    openLawContractHash: "contractHash",
     createdAt: moment().unix(),
     deadline: moment().add(30, 'd').endOf('day').unix(),
     commissionFee: 10 //fee in percentage
@@ -97,6 +98,7 @@ createInvestment = async (totalInvestmentCost) => {
         investmentDetails.createdAt,
         investmentDetails.deadline,
         investmentDetails.commissionFee,
+        investmentDetails.openLawContractHash,
         {
             from: managerAccountAddress
         }
@@ -383,6 +385,49 @@ const shouldRunInvestmentRankingTests = true;
             const investmentStatus = await investmentInstance._investmentStatus();
             assert.equal(investmentStatus, INVESTMENTSTATUS_COMPLETED, "total investment required has been invested");
         });
+
+        it('should let manager sign openlaw contract if hash is correct', async() => {
+            const initialInvestmentEther = '10';
+            const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
+            // create investment contract
+            await createInvestment();
+    
+            //assign invesmentInstance
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+            const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
+    
+            //invest complete investment amount (from account that is not manager)
+            await investmentInstance.invest({from: investorOne, value: initialInvestmentWei});
+
+            //sign openlaw contract
+            await investmentInstance.signOpenLawContract(investmentDetails.openLawContractHash, {from: managerAccountAddress});
+
+            //assert that contract has been signed
+            const openLawContractSigned = await investmentInstance._openLawContractSignedViaTransaction();
+
+            assert.isTrue(openLawContractSigned, "because the contract was signed");
+        });
+
+        it('should fail if manager signs incorrect openlaw contract hash', async() => {
+            const initialInvestmentEther = '10';
+            const initialInvestmentWei = ethers.utils.parseEther(initialInvestmentEther);
+            // create investment contract
+            await createInvestment();
+    
+            //assign invesmentInstance
+            const deployedInvestments = await investmentFactoryInstance.getDeployedInvestments();
+            const investmentInstance = await createInvestmentInstance(deployedInvestments[0]);
+    
+            //invest complete investment amount (from account that is not manager)
+            await investmentInstance.invest({from: investorOne, value: initialInvestmentWei});
+
+            //transaction should revert
+            await truffleAssert.reverts(
+                investmentInstance.signOpenLawContract("randomHash", {from: managerAccountAddress}),
+                    "incorrect openlaw contract being signed"
+            );
+        });
+
     
         it('should let manager withdraw funds when investement fully funded (COMPLETED)', async() => {
             const initialInvestmentEther = '10';
@@ -399,7 +444,11 @@ const shouldRunInvestmentRankingTests = true;
             
             //initial manager account balance
             const walletBalanceInEtherBeforeWithdrawal = await getEtherBalanceOfAddress(managerAccountAddress);
-    
+
+            //sign openlaw contract
+            var openSigningTxn = await investmentInstance.signOpenLawContract(investmentDetails.openLawContractHash, {from: managerAccountAddress});
+            await mineTx(openSigningTxn);
+
             //withdraw investment contributions
             await investmentInstance.transferInvestmentContributions();
     
@@ -409,7 +458,7 @@ const shouldRunInvestmentRankingTests = true;
             //difference in balance
             const diffInWalletBalanceInEther =  walletBalanceInEtherAfterWithdrawal - walletBalanceInEtherBeforeWithdrawal;
     
-            assert.closeTo(parseFloat(diffInWalletBalanceInEther), 10.0, 0.001, "manager account should receive entire investment contribution amount")
+            assert.closeTo(parseFloat(diffInWalletBalanceInEther), 10.0, 0.01, "manager account should receive entire investment contribution amount")
         });
     
         it('should set InvestmentTransferStatus to INVESTMENTTRANSFER_COMPLETED', async () => {
@@ -424,6 +473,10 @@ const shouldRunInvestmentRankingTests = true;
     
             //invest complete investment amount (from account that is not manager)
             await investmentInstance.invest({from: investorOne, value: initialInvestmentWei});
+
+            //sign openlaw contract
+            var openSigningTxn = await investmentInstance.signOpenLawContract(investmentDetails.openLawContractHash, {from: managerAccountAddress});
+            await mineTx(openSigningTxn);
     
             //withdraw investment contributions
             await investmentInstance.transferInvestmentContributions();
@@ -467,6 +520,10 @@ const shouldRunInvestmentRankingTests = true;
     
             //invest complete investment amount
             await investmentInstance.invest({value: initialInvestmentWei});
+
+            //sign openlaw contract
+            var openSigningTxn = await investmentInstance.signOpenLawContract(investmentDetails.openLawContractHash, {from: managerAccountAddress});
+            await mineTx(openSigningTxn);
     
             //let manager withdraw investment (contract should now have no balance)
             await investmentInstance.transferInvestmentContributions();
@@ -523,6 +580,10 @@ const shouldRunInvestmentRankingTests = true;
             // console.log("totalInvestmentContribution: ", ethers.utils.formatEther(await investmentInstance._totalInvestmentContributed()));
             // console.log("totalInvestmentCost: ", ethers.utils.formatEther(await investmentInstance._totalInvestmentCost()));
             assert.equal(investmentStatus, INVESTMENTSTATUS_COMPLETED, "investment should be completed");
+
+            //sign openlaw contract
+            var openSigningTxn = await investmentInstance.signOpenLawContract(investmentDetails.openLawContractHash, {from: managerAccountAddress});
+            await mineTx(openSigningTxn);
     
             //let manager withdraw investment (contract should now have no balance)
             await investmentInstance.transferInvestmentContributions();

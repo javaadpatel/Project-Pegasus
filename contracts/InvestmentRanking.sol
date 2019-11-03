@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 import "./SafeMath.sol";
 
-interface InvestmentContractInterface {
+contract InvestmentContractInterface {
     function _totalPayments () external view returns (uint256);
 }
 

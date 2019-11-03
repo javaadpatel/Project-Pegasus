@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 import "./SafeMath.sol";
 
-interface InvestmentRanking {
+interface InvestmentRankingInterface {
     function createInvestmentManagerIfNotExists (address investmentManagerAddress, address proxyContractAddress) external;
     function saveInvestment(address investmentAddress, address investmentManagerAddress) external;
     function isInvestmentAllowed(address investmentManagerAddress, uint256 investmentCost) external returns(bool);
@@ -14,7 +14,7 @@ contract InvestmentFactory {
     address public _manager;                        //creator of the investment factory
     event InvestmentCreated (address indexed managerAddress, address indexed investmentContractAddress);
     Investment[] public deployedInvestments;
-    InvestmentRanking public investmentRankingContract;
+    InvestmentRankingInterface public investmentRankingContract;
     address public _investmentRankingContractAddress;
 
     modifier onlyManager() {
@@ -23,18 +23,18 @@ contract InvestmentFactory {
     }
 
     constructor(address investmentRankingContractAddress) public{
-        investmentRankingContract = InvestmentRanking(investmentRankingContractAddress);
+        investmentRankingContract = InvestmentRankingInterface(investmentRankingContractAddress);
         _investmentRankingContractAddress = investmentRankingContractAddress;
         _manager = msg.sender;
     }
 
     function updateInvestmentRankingContractAddress (address contractAddress) external onlyManager() {
-        investmentRankingContract = InvestmentRanking(contractAddress);
+        investmentRankingContract = InvestmentRankingInterface(contractAddress);
         _investmentRankingContractAddress = contractAddress;
     }
 
     function createInvestment(address manager, uint256 totalInvestmentCost, string memory investmentTitle, string memory investmentRationale,
-        uint256 createdAt, uint256 investmentDeadlineTimestamp, uint256 commissionFee) public{
+        uint256 createdAt, uint256 investmentDeadlineTimestamp, uint256 commissionFee, string memory openLawContractHash) public{
 
         //create this investment manager if they do not exist
         //msg.sender corresponds to the proxy contract using uPort
@@ -51,6 +51,7 @@ contract InvestmentFactory {
             totalInvestmentCost,
             investmentTitle,
             investmentRationale,
+            openLawContractHash,
             createdAt,
             investmentDeadlineTimestamp,
             commissionFee,
@@ -91,6 +92,8 @@ contract Investment {
     uint256 public _totalInvestmentContributed;     //total investment amount contributed
     string public _investmentTitle;                 //investment title
     string public _investmentRationale;             //investment rationale
+    string public _openLawContractHash;             //OpenLaw contract hash
+    bool public _openLawContractSignedViaTransaction = false; //indicates that manager has signed the openlaw contract using metamask/uport
     uint256 public _commissionFee;                  //fee charged by investment creator
     uint8   public _investorCount;                  //number of investors
     uint    public _createdAt;                      //unix timestamp indicating Investment creation
@@ -114,14 +117,16 @@ contract Investment {
     uint256 public _totalPayments; //sum of all payments made to this investment contract (regardless of sender)
     mapping (address => uint256) _paymentIndexWithdrawnByAddress; //mapping containing the payments index withdrawn by a particular investor
 
-    InvestmentRanking public _investmentRankingContract; //instance of investment ranking contract
+    InvestmentRankingInterface public _investmentRankingContract; //instance of investment ranking contract
 
     constructor(address manager, uint256 totalInvestmentCost, string memory investmentTitle, string memory investmentRationale,
-        uint256 createdAt, uint256 investmentDeadlineTimestamp, uint256 commissionFee, uint8 managerRanking, address investmentRankingContractAddress) public payable{
+        string memory openLawContractHash, uint256 createdAt, uint256 investmentDeadlineTimestamp, uint256 commissionFee, 
+        uint8 managerRanking, address investmentRankingContractAddress) public payable{
         _manager = manager;
         _totalInvestmentCost = totalInvestmentCost;
         _investmentTitle = investmentTitle;
         _investmentRationale = investmentRationale;
+        _openLawContractHash = openLawContractHash;
         _createdAt = createdAt;
         _investmentDeadlineTimestamp = investmentDeadlineTimestamp;
         _investmentStatus = InvestmentStatus.INPROGRESS;
@@ -129,7 +134,7 @@ contract Investment {
         _commissionFee = commissionFee;
         _managerRanking = managerRanking;
 
-        _investmentRankingContract = InvestmentRanking(investmentRankingContractAddress);
+        _investmentRankingContract = InvestmentRankingInterface(investmentRankingContractAddress);
     }
 
     modifier onlyManager() {
@@ -175,12 +180,42 @@ contract Investment {
         }
     }
 
-    function transferInvestmentContributions() external {
+    function hashCompareWithLengthCheck(string memory a, string memory b) internal pure returns (bool) {
+        if(bytes(a).length != bytes(b).length) {
+            return false;
+        } else {
+            return keccak256(bytes(a)) == keccak256(bytes(b));
+        }
+    }
+
+    function signOpenLawContract(string memory openLawContractHash) public {
+        //assert that contract being signed is the exact contract assigned to this contract at creation time
+        require(hashCompareWithLengthCheck(_openLawContractHash, openLawContractHash), "incorrect openlaw contract being signed");
+
         checkContractStatus();
 
         if (_investmentStatus != InvestmentStatus.COMPLETED || _investmentTransferStatus == InvestmentTransferStatus.COMPLETED){
             return;
         }
+
+        //get manager's proxy contracts
+        address[] memory proxyContracts = _investmentRankingContract.getProxyContractsOfAddress(_manager);
+
+        //there should not be a significant amount of proxy contracts (if this changes, then consider a mapping rather)
+        bool isProxyContract = false;
+        for(uint i = 0; i < proxyContracts.length; i++){
+            if (proxyContracts[i] == msg.sender){
+                isProxyContract = true;
+            }
+        }
+        require(isProxyContract, "error: must be proxy contract");
+
+        //set contract signed
+        _openLawContractSignedViaTransaction = true;
+    }
+
+    function transferInvestmentContributions() external {
+        require(_openLawContractSignedViaTransaction, "openlaw contract must be signed before releasing funds");
 
         //get manager's proxy contracts
         address[] memory proxyContracts = _investmentRankingContract.getProxyContractsOfAddress(_manager);
