@@ -1,11 +1,13 @@
 import uPortConnect from './uPortConnect';
-import getWeb3 from './web3Provider.js';
-
-const Investment = require("../contracts/Investment.json");
+import Investment from '../contracts/Investment.json';
+import { ethers } from "ethers";
+import {getWeb3} from "./web3Provider";
 
 export const createInvestment = async (contractAddress) => {
-    Investment.setProvider(getWeb3());
-    return Investment.at(contractAddress);
+    const provider = getWeb3();
+    const signer = provider.getSigner();
+    var investmentInstance = new ethers.Contract(contractAddress, Investment.abi, signer);
+    return investmentInstance;
 }
 
 export const createUPortInvestment = async (contractAddress) => {

@@ -10,6 +10,7 @@ class InvestmentCreate extends React.Component{
     state = { isLoading: false, fetchManagerDetails: false };
 
     componentDidMount(){
+        console.log(this.props.managerDetails)
         this.props.fetchInvestmentManager();
     }
 

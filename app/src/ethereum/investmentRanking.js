@@ -1,13 +1,14 @@
 // import InvestmentRanking from '../contracts/InvestmentRanking.json';
 import uportConnect from './uPortConnect.js';
 import {investmentRankingContractAddress} from '../configuration';
-import getWeb3 from './web3Provider.js';
-
-const InvestmentRanking = require("../contracts/InvestmentRanking.json");
+import InvestmentRanking from '../contracts/InvestmentRanking.json';
+import { ethers } from "ethers";
+import {getWeb3} from './web3Provider';
 
 export const createInvestmentRanking = async () => {
-    InvestmentRanking.setProvider(getWeb3());
-    return InvestmentRanking.at(investmentRankingContractAddress);
+    let provider = getWeb3();
+    var investmentRankingInstance = new ethers.Contract(investmentRankingContractAddress, InvestmentRanking.abi, provider);
+    return investmentRankingInstance;
 }
 
 export const createUPortInvestmentRanking = async () => {

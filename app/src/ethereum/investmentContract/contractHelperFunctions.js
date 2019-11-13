@@ -34,14 +34,8 @@ export const checkFailedInvestment = async (investment, investmentObject) => {
     if (investmentObject.investmentStatus === InvestmentStatusEnum.INPROGRESS) {
         //check if the date now is after the investement is supposed to have expired
         if (moment().isAfter(moment(investmentObject.investmentDeadlineTimestamp, 'D/MM/YY'))) {
-            //await investment.checkContractStatus();
-            // await investment.verboseWaitForTransaction(statussTxn);
-
             //hack, set status to FAILED, otherwise user will have to initiate transaction
             investmentObject.investmentStatus = InvestmentStatusEnum.FAILED;
-
-            // await investment.verboseWaitForTransaction(statusTxn);
-            // investmentObject = await fetchInvestmentFromContract(investmentObject.address);
         }
     }
 
@@ -54,7 +48,6 @@ export const createPaymentObjectsArray = (rawPayments) => {
         .map((payment) => payment.splice(-3, 3))
         .map((payment) => {
             var paymentObject = {};
-            console.log("create payments object array",moment.unix(payment[0]));
             paymentObject.timestamp = moment.unix(payment[0].toNumber()).format('LLLL');
             paymentObject.amountInEther = ethers.utils.formatEther(payment[1]);
             paymentObject.address = payment[2];

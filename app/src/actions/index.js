@@ -112,7 +112,7 @@ export const signOut = () => {
 export const registerOnEthProviderUpdate = () => dispatch => {
     if(window.web3) {
       const publicConfigStore = window.web3.currentProvider.publicConfigStore;
-          
+          console.log({publicConfigStore});
       dispatch({
         type: FETCH_ETH_PROVIDER_SUCCESS,
         payload: {
@@ -122,6 +122,7 @@ export const registerOnEthProviderUpdate = () => dispatch => {
       });
   
       window.web3.currentProvider.publicConfigStore.on('update', (config) => {
+          console.log(config);
         dispatch({
           type: FETCH_ETH_PROVIDER_SUCCESS,
           payload: {
@@ -139,17 +140,17 @@ export const registerOnEthProviderUpdate = () => dispatch => {
   }
 
 export const createInvestment = (managerAddress, formValues) => async (dispatch, getState) => {
-    var investment =  await createInvestmentFromContract(managerAddress, formValues);
+    await createInvestmentFromContract(managerAddress, formValues);
 
     uPortConnect.onResponse('createInvestmentReq').then(async payload => {
         const txnHash = payload.payload;
         dispatch(etherScanStatusChecker(txnHash, fetchInvestments));
     })
 
-    dispatch({
-        type: CREATE_INVESTMENT,
-        payload: investment
-    });
+    // dispatch({
+    //     type: CREATE_INVESTMENT,
+    //     payload: investment
+    // });
 
     //programatic navigation
     history.push('/');
@@ -178,7 +179,7 @@ export const invest = (formValues, contractAddress) => async dispatch => {
     await performAction(INVEST, async () => {
         //invest in investment
         await investToContract(contractAddress, formValues.amount);
-
+        console.log("invested");
         //fetch investment
         var investment = await fetchInvestmentFromContract(contractAddress);
 
