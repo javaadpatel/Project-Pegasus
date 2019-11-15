@@ -1,16 +1,12 @@
 import React from 'react';
 import {connect} from 'react-redux';
 import _ from 'lodash';
-import {fetchInvestment, fetchInvestmentContributionSummary, fetchPayments} from  '../../actions';
-import InvestmentForm from './Forms/InvestmentForm';
-import InvestmentPaymentForm from './Forms/InvestmentPaymentForm';
+import {fetchInvestment, fetchPayments} from  '../../actions';
 import InvestmentPaymentsTable from  './Tables/InvestmentPaymentsTable';
-import WithdrawPaymentsButton from './Buttons/WithdrawPaymentsButton';
-import WithdrawInvestmentButton from './Buttons/WithdrawInvestmentButton';
-import ExtractInvestmentsButton from './Buttons/ExtractInvestmentsButton';
-import {InvestmentStatusEnum, InvestmentTransferStatusEnum} from  '../../constants';
+import {InvestmentStatusEnum} from  '../../constants';
 import {Menu, Loader, Segment, Dimmer, Container, Grid,
     Image, Divider, Progress, Card, Label, Icon, Statistic} from 'semantic-ui-react';
+import InvestmentShow_InvestorInfo from './InvestmentShow_InvestorInfo';
 
 class InvestmentShow extends React.Component {
     state = {loading:false, activeItem: 'investmentSummary' }
@@ -19,103 +15,7 @@ class InvestmentShow extends React.Component {
     componentDidMount(){
         const {address} = this.props.match.params;
         this.props.fetchInvestment(address);
-        this.props.fetchInvestmentContributionSummary(address);
         this.props.fetchPayments(address);
-    }
-
-    renderInvestmentParticipation(){
-        if (this.props.investmentContribution.amountContributedInEth === "0.0"){
-            return(
-                <div>
-                    You are not an investor.
-                </div>
-            );
-        }
-
-        const {amountContributedInEth, percentageShare} = this.props.investmentContribution;
-        return(
-            <div>
-                <h4>Your investment Contribution:</h4>
-                 <Statistic.Group>
-                    <Statistic size='tiny'>
-                    <Statistic.Value>
-                        <Icon size='tiny' name='dollar sign'/>{amountContributedInEth}
-                    </Statistic.Value>
-                    <Statistic.Label>Invested <br/> (ETH)</Statistic.Label>
-                    </Statistic>
-
-                    <Statistic size='tiny'>
-                    <Statistic.Value>
-                        <Icon name='percent' size='tiny'/>
-                        {percentageShare}
-                    </Statistic.Value>
-                    <Statistic.Label>Return</Statistic.Label>
-                    </Statistic>
-
-                </Statistic.Group>
-            </div>
-        );
-    };
-
-    renderInvest(){
-        if (this.props.investment.investmentStatus === InvestmentStatusEnum.INPROGRESS ){
-            return(
-                <div>
-                    <InvestmentForm investmentContractAddress={this.props.investment.address} />
-                </div>
-            )
-        }
-    }
-
-    renderWithdraw(){
-        if(this.props.investment.investmentStatus === InvestmentStatusEnum.FAILED){
-            return(
-                <WithdrawInvestmentButton investmentContractAddress={this.props.investment.address} />
-            )
-        }
-    }
-
-    renderPayments(){
-        if(this.props.investment.investmentStatus === InvestmentStatusEnum.COMPLETED){
-            return(
-                <div>
-                    {this.renderPaymentButtons()}
-                </div>
-            )
-        }
-    }
-
-    renderPaymentButtons(){
-        return (
-            <>
-                {this.renderTranferButton()}
-                <InvestmentPaymentForm investmentContractAddress={this.props.investment.address} />
-                <Divider horizontal>OR</Divider>
-                <WithdrawPaymentsButton investmentContractAddress={this.props.investment.address} />
-            </>
-        )
-    }
-
-    renderTranferButton(){
-        var uPortAddress = _.get(this.props.manager, 'user.uPortAddress');
-        const {managerAddress, investmentTransferStatus} = this.props.investment;
-        if (investmentTransferStatus === InvestmentTransferStatusEnum.INCOMPLETE &&
-            uPortAddress === managerAddress.toLowerCase()){
-            return  (
-                <>
-                    <ExtractInvestmentsButton investmentContractAddress={this.props.investment.address} />
-                    <Divider horizontal>OR</Divider>
-                </>
-            )
-        }
-    }
-
-    renderActions(){
-        return(
-            this.renderInvest() ||
-            this.renderWithdraw() ||
-            this.renderPayments()
-        )
     }
 
     renderLabels(){
@@ -187,13 +87,13 @@ class InvestmentShow extends React.Component {
 
     renderCard_PaymentsSummary(){
         return(
-            <InvestmentPaymentsTable payments={this.props.payments} />
+            <InvestmentPaymentsTable payments={this.props.payments} key={this.props.payments}/>
         );
     }
 
 
     render(){
-        if(!this.props.investment || !this.props.investmentContribution){
+        if(!this.props.investment){
             return (
                 <Segment padded='very'>
                     <Dimmer active inverted>
@@ -248,9 +148,12 @@ class InvestmentShow extends React.Component {
                             </Grid.Column>
 
                             <Grid.Column width={4}>
-                                {this.renderInvestmentParticipation()}
-                                <br />
-                                {this.renderActions()}
+                                <InvestmentShow_InvestorInfo 
+                                    investmentAddress={this.props.investment.address} 
+                                    ethereumAddress={this.props.ethereumAddress}
+                                    manager={this.props.manager}
+                                    investment={this.props.investment}
+                                    key={this.props.ethereumAddress}/>
                             </Grid.Column>
                         </Grid.Row>
                     </Grid>
@@ -266,12 +169,12 @@ const mapStateToProps = (state, ownProps) => {
         investment: state.investments[address],
         investmentContribution: state.investmentContributions[address],
         payments: state.payments[address],
-        manager: state.auth
+        manager: state.auth,
+        ethereumAddress: state.ethProvider.selectedAddress
     }
 }
 
 export default connect(mapStateToProps, {
     fetchInvestment,
-    fetchInvestmentContributionSummary,
     fetchPayments
 })(InvestmentShow);

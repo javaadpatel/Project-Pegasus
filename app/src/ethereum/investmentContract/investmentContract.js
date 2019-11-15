@@ -125,7 +125,9 @@ export const withdrawInvestmentFromContract = async (address) => {
 
 export const fetchInvestmentContributionSummaryFromContract = async (address) => {
     var investmentInstance = await createInvestmentInstance(address);
+    //get investment contribution summary for the calling address
     var investmentContributionSummaryArray = await investmentInstance.getInvestmentContributionSummary();
+    
     //convert array to object
     var investmentContributionSummaryObject = createInvestmentContributionSummaryObject(address, investmentContributionSummaryArray);
     return investmentContributionSummaryObject;
