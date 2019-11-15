@@ -7,3 +7,6 @@ truffle migrate --network ropsten
 truffle migrate
 
 deploy using "Meta Ropsten(Manager)"
+
+# Netlify deployment command
+npm install && npm install truffle && truffle compile && cd app && npm install && npm run build
