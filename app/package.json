@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "cross-env": "^6.0.3",
     "dotenv": "^8.2.0",
     "ethers": "^4.0.39",
     "lodash": "^4.17.15",
@@ -22,7 +23,8 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "cp-netlify-config": "cross-env cp -f netlify.toml build"
   },
   "eslintConfig": {
     "extends": "react-app"
