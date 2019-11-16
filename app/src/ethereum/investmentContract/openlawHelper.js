@@ -2,7 +2,7 @@ import {openLawConfig} from '../../configuration/index';
 import _ from 'lodash';
 
 const buildOpenLawParamsObj = async (templateObject) => {
-    const {myTemplate, creatorId, investmentManager, investmentContractAddress, investmentManagerEmail} = templateObject;
+    const {myTemplate, creatorId, investmentManagerAddress, investmentContractAddress, investmentManagerEmail} = templateObject;
 
     const object = {
         templateId: myTemplate.id,
@@ -10,7 +10,7 @@ const buildOpenLawParamsObj = async (templateObject) => {
         text: myTemplate.content,
         creator: creatorId,
         parameters: {
-            "Investment Manager Address": investmentManager,
+            "Investment Manager Address": investmentManagerAddress,
             "Investment Contract Address": investmentContractAddress,
             "Investment Manager Signatory Email": investmentManagerEmail,
         },
@@ -20,20 +20,17 @@ const buildOpenLawParamsObj = async (templateObject) => {
         editEmails: [],
         draftId: '',//this.state.draftId,
         options: {
-            sendNotification: true
+            sendNotification: "true"
         }
     };
 
-    console.log("build object", object.draftId);
     return object;
 };
 
 const createSignedInOpenlawClientInstance = async () => {
      //create open law client
      const apiClient = new window.openlaw.APIClient(openLawConfig.server);
-     console.log(apiClient);
      const openLaw = window.openlaw.Openlaw;
-     console.log(openLaw);
  
      try{
          //login to openlaw instance 
@@ -53,13 +50,11 @@ export const compileOpenLawTemplate = async () => {
      try{
          //get most recent version of the template that was created by us
          const versions = await apiClient.getTemplateVersions(openLawConfig.templateName, 20, 1);
-         console.log({versions});
          const latestAuthorizedVersion = _.chain(versions).filter({ 'creatorId': openLawConfig.creatorId}).head().value();
  
          //retrieve the openLaw template by name
          // const myTemplate = await apiClient.getTemplate(openLawConfig.templateName); //testing
          const myTemplate = await apiClient.getTemplateById(latestAuthorizedVersion.id);
-         console.log("myTEmplate", myTemplate);
          
          //pull properties off of JSON and make into variables
          const myTitle = myTemplate.title;
@@ -69,7 +64,6 @@ export const compileOpenLawTemplate = async () => {
          
          //get the creatorID from the template
          const creatorId = latestAuthorizedVersion.creatorId;
-         console.log(creatorId);
          
          //Get my compiled Template, for use in rendering the HTML in previewTemplate
          const myCompiledTemplate = await openLaw.compileTemplate(myContent);
@@ -79,9 +73,7 @@ export const compileOpenLawTemplate = async () => {
              throw "my Template error" + myCompiledTemplate.errorMessage;
          }
  
-         console.log(myCompiledTemplate);
- 
-         return {myTemplate, myCompiledTemplate, creatorId};
+         return {myTemplate, myTitle, myContent, myCompiledTemplate, creatorId};
      } catch (error) {
          // Catch any errors for any of the above operations.
          alert(
@@ -96,8 +88,8 @@ export const uploadDraft = async (templateObject) => {
 
     //add Open Law params to be uploaded
     const uploadParams = await buildOpenLawParamsObj(templateObject);
-    console.log('parmeters from user..', uploadParams.parameters);
-    console.log('all parameters uploading...', uploadParams);
+    // console.log('parmeters from user..', uploadParams.parameters);
+    // console.log('all parameters uploading...', uploadParams);
 
     //uploadDraft, sends a draft contract to "Draft Management", which can be edited. 
     try{
@@ -107,8 +99,8 @@ export const uploadDraft = async (templateObject) => {
         console.log("upload params", uploadParams);
         //uploadContract, this sends a completed contract to "Contract Management", where it can not be edited.
         // console.log('upload contract...');
-        // const result = await apiClient.uploadContract(uploadParams);
-        // console.log('results..', result)
+        const result = await apiClient.uploadContract(uploadParams);
+        console.log('results..', result)
     }catch(error){
         console.log("Error occurred while trying to upload open law contract draft...");
         console.log({error})
@@ -117,14 +109,11 @@ export const uploadDraft = async (templateObject) => {
 
 export const previewTemplate = async (templateObject) => {
     const {openLaw} = await createSignedInOpenlawClientInstance();
-    const {myCompiledTemplate, investmentManager, investmentContractAddress} = templateObject;
+    const {myCompiledTemplate, investmentManagerAddress, investmentContractAddress} = templateObject;
 
-    console.log('preview of openlaw draft..');
-    // event.preventDefault();
-    //Display HTML 
     try{
         const params = {
-            "Investment Manager Address": investmentManager,
+            "Investment Manager Address": investmentManagerAddress,
             "Investment Contract Address": investmentContractAddress
         };
         

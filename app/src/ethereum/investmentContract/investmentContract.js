@@ -62,23 +62,23 @@ export const createInvestmentFromContract = async (managerAddress, formValues) =
     // return createInvestmentObject(investmentDetails);
 }
 
-export const uploadOpenLawContract = async () => {
-    console.log("inner upload");
+// export const uploadOpenLawContract = async () => {
+//     console.log("inner upload");
 
-    //compile template
-    const templateObject = await compileOpenLawTemplate();
+//     //compile template
+//     const templateObject = await compileOpenLawTemplate();
 
-    //argument template object with parameters for uploading
-    templateObject.investmentManager = "0x9D712E3b95C3816F4d923A00216ddAF99e02e644";
-    templateObject.investmentContractAddress = "0x64134384DCcAF62CDeCF1CD43790E44Efe9Fd635";
-    templateObject.investmentManagerEmail = "javaadpatel@gmail.com";
+//     //argument template object with parameters for uploading
+//     templateObject.investmentManager = "0x9D712E3b95C3816F4d923A00216ddAF99e02e644";
+//     templateObject.investmentContractAddress = "0x64134384DCcAF62CDeCF1CD43790E44Efe9Fd635";
+//     templateObject.investmentManagerEmail = "javaadpatel@gmail.com";
 
-    const html = await previewTemplate(templateObject);
-    console.log(html);
+//     const html = await previewTemplate(templateObject);
+//     console.log(html);
 
-    console.log(templateObject);
-    await uploadDraft(templateObject); 
-}
+//     console.log(templateObject);
+//     await uploadDraft(templateObject); 
+// }
 
 export const fetchInvestmentsFromContract = async () => {
     const investments = [];
@@ -115,6 +115,10 @@ export const fetchInvestmentFromContract = async (address) => {
 
      //check investmentStatus to determine if investment is failed
      investmentObject = await checkFailedInvestment(investment, investmentObject);
+
+     //get openlaw signing status
+     const signingStatus = await investment.getOpenLawContractSignedViaTransaction();
+     investmentObject.openLawSigningStatus = signingStatus;
 
      return investmentObject;
 }
@@ -184,4 +188,14 @@ export const extractInvestmentsFromContract_uPort = async (contractAddress) => {
     (await createUPortInvestment(contractAddress))
         .transferInvestmentContributions(
             'extractInvestmentsReq');
+}
+
+export const signOpenLawContract_uPort = async (contractAddress, html) => {
+    //escape html before saving to contract
+    html = _.escape(html);
+
+    (await createUPortInvestment(contractAddress))
+    .signOpenLawContract(
+        html,
+        'signOpenLawContractReq');
 }
