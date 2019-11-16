@@ -34,7 +34,7 @@ contract InvestmentFactory {
     }
 
     function createInvestment(address manager, uint256 totalInvestmentCost, string memory investmentTitle, string memory investmentRationale,
-        uint256 createdAt, uint256 investmentDeadlineTimestamp, uint256 commissionFee, string memory openLawContractHash) public{
+        uint256 createdAt, uint256 investmentDeadlineTimestamp, uint256 commissionFee) public{
 
         //create this investment manager if they do not exist
         //msg.sender corresponds to the proxy contract using uPort
@@ -51,7 +51,6 @@ contract InvestmentFactory {
             totalInvestmentCost,
             investmentTitle,
             investmentRationale,
-            openLawContractHash,
             createdAt,
             investmentDeadlineTimestamp,
             commissionFee,
@@ -92,8 +91,8 @@ contract Investment {
     uint256 public _totalInvestmentContributed;     //total investment amount contributed
     string public _investmentTitle;                 //investment title
     string public _investmentRationale;             //investment rationale
-    string public _openLawContractHash;             //OpenLaw contract hash
-    bool public _openLawContractSignedViaTransaction = false; //indicates that manager has signed the openlaw contract using metamask/uport
+    string public _openLawContract = "";             //OpenLaw contract
+    bool private _openLawContractSignedViaTransaction = false; //indicates that manager has signed the openlaw contract using metamask/uport (marked private so that only internal calls can alter value)
     uint256 public _commissionFee;                  //fee charged by investment creator
     uint8   public _investorCount;                  //number of investors
     uint    public _createdAt;                      //unix timestamp indicating Investment creation
@@ -120,13 +119,12 @@ contract Investment {
     InvestmentRankingInterface public _investmentRankingContract; //instance of investment ranking contract
 
     constructor(address manager, uint256 totalInvestmentCost, string memory investmentTitle, string memory investmentRationale,
-        string memory openLawContractHash, uint256 createdAt, uint256 investmentDeadlineTimestamp, uint256 commissionFee, 
+        uint256 createdAt, uint256 investmentDeadlineTimestamp, uint256 commissionFee, 
         uint8 managerRanking, address investmentRankingContractAddress) public payable{
         _manager = manager;
         _totalInvestmentCost = totalInvestmentCost;
         _investmentTitle = investmentTitle;
         _investmentRationale = investmentRationale;
-        _openLawContractHash = openLawContractHash;
         _createdAt = createdAt;
         _investmentDeadlineTimestamp = investmentDeadlineTimestamp;
         _investmentStatus = InvestmentStatus.INPROGRESS;
@@ -188,15 +186,16 @@ contract Investment {
         }
     }
 
-    function signOpenLawContract(string memory openLawContractHash) public {
+    function getOpenLawContractSignedViaTransaction() public view returns(bool) {
+        return _openLawContractSignedViaTransaction;
+    }
+
+    function signOpenLawContract(string memory openLawContract) public {
+        //check that contract hasn't already been signed, security against changing agreement
+        require(_openLawContractSignedViaTransaction == false, "open law contract already signed");
+
         //assert that contract being signed is the exact contract assigned to this contract at creation time
-        require(hashCompareWithLengthCheck(_openLawContractHash, openLawContractHash), "incorrect openlaw contract being signed");
-
-        checkContractStatus();
-
-        if (_investmentStatus != InvestmentStatus.COMPLETED || _investmentTransferStatus == InvestmentTransferStatus.COMPLETED){
-            return;
-        }
+        // require(hashCompareWithLengthCheck(_openLawContractHash, openLawContractHash), "incorrect openlaw contract being signed");
 
         //get manager's proxy contracts
         address[] memory proxyContracts = _investmentRankingContract.getProxyContractsOfAddress(_manager);
@@ -211,11 +210,20 @@ contract Investment {
         require(isProxyContract, "error: must be proxy contract");
 
         //set contract signed
+        _openLawContract = openLawContract;
         _openLawContractSignedViaTransaction = true;
     }
 
     function transferInvestmentContributions() external {
+        //check that the manager has signed an openlaw contract
         require(_openLawContractSignedViaTransaction, "openlaw contract must be signed before releasing funds");
+
+        //check that investment is complete and that transfer has not already been done before allowing manager to withdraw funds
+        checkContractStatus();
+
+        if (_investmentStatus != InvestmentStatus.COMPLETED || _investmentTransferStatus == InvestmentTransferStatus.COMPLETED){
+            return;
+        }
 
         //get manager's proxy contracts
         address[] memory proxyContracts = _investmentRankingContract.getProxyContractsOfAddress(_manager);

@@ -1,8 +1,8 @@
 import React from 'react';
 import {connect} from 'react-redux';
 import {Link} from 'react-router-dom';
-import {fetchInvestments} from '../../actions';
-import {Item, Tab, Menu, Label, Segment, Dimmer, Loader, Popup, Icon} from 'semantic-ui-react';
+import {fetchInvestments, uploadOpenLawContractDraft} from '../../actions';
+import {Item, Tab, Menu, Label, Segment, Dimmer, Loader, Popup, Icon, Button} from 'semantic-ui-react';
 import {InvestmentStatusEnum} from  '../../constants';
 import _ from 'lodash';
 import OpenLawWithdrawalContract from './Forms/OpenLawWithdrawalContract';
@@ -144,6 +144,7 @@ class InvestmentList extends React.Component{
                 <br />
                 {this.TabExampleVerticalTabular()}
 
+                <Button onClick={() => this.props.uploadOpenLawContractDraft()}>Upload Contract</Button>
                 <OpenLawWithdrawalContract />
             </div>
         );
@@ -159,5 +160,6 @@ const mapStateToProps = (state) => {
 }
 
 export default connect(mapStateToProps, {
-    fetchInvestments
+    fetchInvestments,
+    uploadOpenLawContractDraft
 })(InvestmentList);

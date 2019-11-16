@@ -25,7 +25,8 @@ import {
     makePaymentToContract,
     getPaymentsFromContract,
     withdrawPaymentsFromContract,
-    extractInvestmentsFromContract_uPort
+    extractInvestmentsFromContract_uPort,
+    uploadOpenLawContract
 } from '../ethereum/investmentContract/investmentContract';
 import {
     fetchInvestmentManagerFromContract,
@@ -155,6 +156,14 @@ export const createInvestment = (managerAddress, formValues) => async (dispatch,
     //programatic navigation
     history.push('/');
 };
+
+export const uploadOpenLawContractDraft = () => async (dispatch, getState) => {
+    console.log("draft uploading beginning");
+
+    await uploadOpenLawContract();
+
+    console.log("uploaded");
+}
 
 export const fetchInvestments = () => async dispatch => {
     var investments = await fetchInvestmentsFromContract();

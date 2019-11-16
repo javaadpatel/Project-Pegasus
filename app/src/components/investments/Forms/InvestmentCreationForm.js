@@ -68,12 +68,6 @@ class InvestmentCreationForm extends React.Component{
                     label="Expires in (Days)"
                     type="number"      
                 />
-                <Field
-                    name="email"
-                    component={this.renderInput}
-                    label="Email address"
-                    type="email"
-                />
                 <button className="ui button primary">
                     Submit
                 </button>
@@ -97,9 +91,9 @@ const validate = (formValues, props) =>{
     if (formValues.totalInvestmentCost < 0 || formValues.totalInvestmentCost > props.totalInvestmentMax){
         errors.totalInvestmentCost = `Total Investment Cost must be between 0 and ${props.totalInvestmentMax}`
     }
-    if (!formValues.email || !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i.test(formValues.email)){
-        errors.email = 'Invalid email address' 
-    }
+    // if (!formValues.email || !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i.test(formValues.email)){
+    //     errors.email = 'Invalid email address' 
+    // }
     return errors;
 };
 

@@ -8,6 +8,7 @@ import {createInvestment as createInvestmentInstance,
  } from  '../investment';
 import {createInvestmentObject, createInvestmentContributionSummaryObject, 
     checkFailedInvestment, createPaymentObjectsArray} from './contractHelperFunctions';
+import {compileOpenLawTemplate, uploadDraft, previewTemplate} from './openlawHelper';
 
 
 const requiredNumberOfConfirmations = 3;
@@ -20,7 +21,6 @@ export const createInvestmentFromContract = async (managerAddress, formValues) =
     const investmentDeadlineUnixTimestamp = moment.unix(currentGanacheUnixTimestamp).add(formValues.deadline, 'd').endOf('day').unix();
     const createdAt = currentGanacheUnixTimestamp;
 
-    const openlawContractHash = "hash";
     console.log(managerAddress);
     /*Create Investment using UPort*/
     var txn = (await createUPortInvestmentFactory())
@@ -32,7 +32,6 @@ export const createInvestmentFromContract = async (managerAddress, formValues) =
                 createdAt,
                 investmentDeadlineUnixTimestamp,
                 formValues.commissionFee,
-                openlawContractHash,
             'createInvestmentReq');
 
     console.log(txn);
@@ -61,6 +60,24 @@ export const createInvestmentFromContract = async (managerAddress, formValues) =
     // var investmentDetails = await investment.getInvestmentSummary();
     // investmentDetails.unshift(investmentAddress);
     // return createInvestmentObject(investmentDetails);
+}
+
+export const uploadOpenLawContract = async () => {
+    console.log("inner upload");
+
+    //compile template
+    const templateObject = await compileOpenLawTemplate();
+
+    //argument template object with parameters for uploading
+    templateObject.investmentManager = "0x9D712E3b95C3816F4d923A00216ddAF99e02e644";
+    templateObject.investmentContractAddress = "0x64134384DCcAF62CDeCF1CD43790E44Efe9Fd635";
+    templateObject.investmentManagerEmail = "javaadpatel@gmail.com";
+
+    const html = await previewTemplate(templateObject);
+    console.log(html);
+
+    console.log(templateObject);
+    await uploadDraft(templateObject); 
 }
 
 export const fetchInvestmentsFromContract = async () => {
