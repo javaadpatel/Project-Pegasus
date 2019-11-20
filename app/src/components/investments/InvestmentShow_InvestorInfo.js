@@ -9,8 +9,12 @@ import {InvestmentStatusEnum, InvestmentTransferStatusEnum} from  '../../constan
 import InvestmentPaymentForm from './Forms/InvestmentPaymentForm';
 import InvestmentForm from './Forms/InvestmentForm';
 import {fetchInvestmentContributionSummary} from  '../../actions';
+import {Button} from 'semantic-ui-react';
+import Modal from '../Modal';
+import OpenLawWithdrawalContract from './Forms/OpenLawWithdrawalContract';
 
 class InvestmentShow_InvestorInfo extends React.Component {
+    state = {showOpenLawContractModal: false}
 
     componentDidMount(){
         const address = this.props.investmentAddress;
@@ -18,13 +22,8 @@ class InvestmentShow_InvestorInfo extends React.Component {
     }
 
     renderInvestmentParticipation(){
-        console.log(this.props.investmentContribution);
         if (this.props.investmentContribution.amountContributedInEth === "0.0"){
-            return(
-                <div>
-                    You are not an investor.
-                </div>
-            );
+            return;
         }
 
         const {amountContributedInEth, percentageShare} = this.props.investmentContribution;
@@ -54,9 +53,13 @@ class InvestmentShow_InvestorInfo extends React.Component {
 
     renderActions(){
         return(
-            this.renderInvest() ||
+            <>
+            {this.renderOpenLawSigningButton()}
+            {this.renderTranferButton()}
+            {this.renderInvest() ||
             this.renderWithdraw() ||
-            this.renderPayments()
+            this.renderPayments()}
+            </>
         )
     }
 
@@ -81,7 +84,7 @@ class InvestmentShow_InvestorInfo extends React.Component {
     renderPaymentButtons(){
         return (
             <>
-                {this.renderTranferButton()}
+                {/* {this.renderTranferButton()} */}
                 <InvestmentPaymentForm investmentContractAddress={this.props.investmentAddress} />
                 <Divider horizontal>OR</Divider>
                 <WithdrawPaymentsButton investmentContractAddress={this.props.investmentAddress} />
@@ -89,11 +92,44 @@ class InvestmentShow_InvestorInfo extends React.Component {
         )
     }
 
+    renderOpenLawSigningButton(){
+        const {openLawSigningStatus} = this.props.investment;
+        if (!openLawSigningStatus){
+            return (
+                <Button onClick={() => this.setState({showOpenLawContractModal: true})} color='pink' fluid>
+                    Sign OpenLaw Contract
+                </Button>
+            )
+        }
+    }
+
+    openLawContractSigned(){
+        this.setState({showOpenLawContractModal: false});
+    }
+
+    renderOpenLawContract = () => {
+        if (this.state.showOpenLawContractModal){
+            return (
+                <Modal 
+                content={
+                    <OpenLawWithdrawalContract 
+                        investmentManagerAddress={this.props.investment.managerAddress} 
+                        investmentContractAddress={this.props.investmentAddress}
+                        onSubmitComplete={this.openLawContractSigned.bind(this)}
+                    />
+                }
+                onDismiss={() => this.setState({showOpenLawContractModal: false})}
+                />
+            )
+        }
+    }
+
     renderTranferButton(){
         var uPortAddress = _.get(this.props.manager, 'user.uPortAddress');
-        const {managerAddress, investmentTransferStatus} = this.props.investment;
-        if (investmentTransferStatus === InvestmentTransferStatusEnum.INCOMPLETE &&
-            uPortAddress === managerAddress.toLowerCase()){
+        const {managerAddress, investmentTransferStatus, openLawSigningStatus, investmentStatus} = this.props.investment;
+        if (investmentStatus === InvestmentStatusEnum.COMPLETED &&
+            investmentTransferStatus === InvestmentTransferStatusEnum.INCOMPLETE &&
+            uPortAddress === managerAddress.toLowerCase() && openLawSigningStatus){
             return  (
                 <>
                     <ExtractInvestmentsButton investmentContractAddress={this.props.investmentAddress} />
@@ -128,6 +164,7 @@ class InvestmentShow_InvestorInfo extends React.Component {
 
         return(
             <>
+                {this.renderOpenLawContract()}
                 {this.renderInvestmentParticipation()}
                 <br />
                 {this.renderActions()}

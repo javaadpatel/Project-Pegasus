@@ -1,7 +1,6 @@
 import {
     SIGN_IN,
     SIGN_OUT,
-    CREATE_INVESTMENT,
     FETCH_INVESTMENTS,
     FETCH_INVESTMENT,
     INVEST,
@@ -25,7 +24,8 @@ import {
     makePaymentToContract,
     getPaymentsFromContract,
     withdrawPaymentsFromContract,
-    extractInvestmentsFromContract_uPort
+    extractInvestmentsFromContract_uPort,
+    signOpenLawContract_uPort
 } from '../ethereum/investmentContract/investmentContract';
 import {
     fetchInvestmentManagerFromContract,
@@ -34,6 +34,7 @@ import {
 import history from '../history';
 import uPortConnect from '../ethereum/uPortConnect';
 import {etherScanApiKey} from '../configuration';
+import {uploadDraft} from '../ethereum/investmentContract/openlawHelper';
 
 const performAction = async (actionType, actionFunc, dispatch) => {
     try{
@@ -70,13 +71,15 @@ export const etherScanStatusChecker = (txnHash, funcToDispatch, parameterForDisp
             if(funcToDispatch)
             {
                 if (parameterForDispatch){
+                    console.log("calling func to dispatch with parameters");
                     dispatch(funcToDispatch(parameterForDispatch));
                 }else{
+                    console.log("calling func to dispatch without parameters");
                     dispatch(funcToDispatch());
                 }
             }
         }
-    }, 20000);
+    }, 10000);
 }
 
 const callEtherScanApi = async (txnHash) => {
@@ -112,7 +115,6 @@ export const signOut = () => {
 export const registerOnEthProviderUpdate = () => dispatch => {
     if(window.web3) {
       const publicConfigStore = window.web3.currentProvider.publicConfigStore;
-          console.log({publicConfigStore});
       dispatch({
         type: FETCH_ETH_PROVIDER_SUCCESS,
         payload: {
@@ -122,7 +124,6 @@ export const registerOnEthProviderUpdate = () => dispatch => {
       });
   
       window.web3.currentProvider.publicConfigStore.on('update', (config) => {
-          console.log(config);
         dispatch({
           type: FETCH_ETH_PROVIDER_SUCCESS,
           payload: {
@@ -155,6 +156,21 @@ export const createInvestment = (managerAddress, formValues) => async (dispatch,
     //programatic navigation
     history.push('/');
 };
+
+export const uploadOpenLawContract = (templateObject) => async (dispatch, getState) => {
+    //upload contract to openlaw
+    await uploadDraft(templateObject);
+
+    //upload openlaw contract to investment contract on blockchain
+    await signOpenLawContract_uPort(templateObject.investmentContractAddress, templateObject.html);
+
+    uPortConnect.onResponse('signOpenLawContractReq').then(async payload => {
+        console.log("executing uport openlaw signing callback")
+        const txnHash = payload.payload;
+        dispatch(etherScanStatusChecker(txnHash, fetchInvestment, templateObject.investmentContractAddress));
+    })
+
+}
 
 export const fetchInvestments = () => async dispatch => {
     var investments = await fetchInvestmentsFromContract();

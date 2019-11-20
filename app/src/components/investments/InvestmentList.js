@@ -5,7 +5,6 @@ import {fetchInvestments} from '../../actions';
 import {Item, Tab, Menu, Label, Segment, Dimmer, Loader, Popup, Icon} from 'semantic-ui-react';
 import {InvestmentStatusEnum} from  '../../constants';
 import _ from 'lodash';
-import OpenLawWithdrawalContract from './Forms/OpenLawWithdrawalContract';
 
 class InvestmentList extends React.Component{
     componentDidMount(){
@@ -143,8 +142,6 @@ class InvestmentList extends React.Component{
                 </div>
                 <br />
                 {this.TabExampleVerticalTabular()}
-
-                <OpenLawWithdrawalContract />
             </div>
         );
     }

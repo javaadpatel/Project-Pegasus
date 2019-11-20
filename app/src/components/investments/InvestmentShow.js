@@ -91,6 +91,26 @@ class InvestmentShow extends React.Component {
         );
     }
 
+    renderInvestmentCompletionStatus(){
+        const investmentStatus =  this.props.investment.investmentStatus === InvestmentStatusEnum.COMPLETED ? "Completed" : this.props.investment.investmentStatus === InvestmentStatusEnum.INPROGRESS ? "In Progress" : "Failed";
+        const investmentStatusColor = this.props.investment.investmentStatus === InvestmentStatusEnum.COMPLETED ? "violet" : this.props.investment.investmentStatus === InvestmentStatusEnum.INPROGRESS ? "blue" : "red";
+        return (
+            <Label ribbon as='a' color={investmentStatusColor}>
+                {investmentStatus}
+            </Label>
+        )
+    }
+
+    renderOpenlawSigningStatus(){
+        const signingStatus = this.props.investment.openLawSigningStatus === true ? "OpenLaw Contract Signed" : "OpenLaw Contract Unsigned";
+        const signingStatusColor = this.props.investment.openLawSigningStatus === true ? "violet" : "red"
+        return (
+            <Label color={signingStatusColor} size='medium'>
+                {signingStatus}
+            </Label>
+        )
+    }
+
 
     render(){
         if(!this.props.investment){
@@ -115,7 +135,7 @@ class InvestmentShow extends React.Component {
                                     size='large'
                                     centered
                                     rounded 
-                                    src="https://lh3.googleusercontent.com/WTqidDuhtjqN-wYNzavuSe6inAduOwTEE_jkWPgA1AyvMiR0ySsaUwkOa_u0vCRsWdGP=w412-h220-rw" 
+                                    src={require('../../images/house.png')} 
                                 />
                                 <Divider horizontal>Investment Details</Divider>
                                 <Progress 
@@ -129,14 +149,13 @@ class InvestmentShow extends React.Component {
                             <Grid.Column width={12}>
                                 <Card fluid>
                                     <Card.Content>
+                                        {this.renderInvestmentCompletionStatus()}
                                         <Menu tabular>
                                             <Menu.Item name='investmentSummary' active={activeItem === 'investmentSummary'} onClick={this.handleItemClick}/>
                                             <Menu.Item name='paymentsSummary' active={activeItem === 'paymentsSummary'} onClick={this.handleItemClick} disabled={investmentStatus !== InvestmentStatusEnum.COMPLETED ? true : false}/>
                                             <Menu.Menu position='right'>
                                                 <Menu.Item>
-                                                <Label attached='top right'>
-                                                    {this.props.investment.investmentStatus === InvestmentStatusEnum.COMPLETED ? "Completed" : this.props.investment.investmentStatus === InvestmentStatusEnum.INPROGRESS ? "In Progress" : "Failed"}
-                                                </Label>
+                                                    {this.renderOpenlawSigningStatus()}
                                                 </Menu.Item>
                                             </Menu.Menu>
                                         </Menu>

@@ -10,13 +10,17 @@ const Modal = props => {
             <div 
             onClick={(e) => e.stopPropagation()}
             className="ui transition modal visible active">
-                <div className="header">{props.title}</div>
+                {props.title === undefined ? "" : <div className="header">{props.title}</div>}
+                
                 <div className="content">
                     {props.content}
                 </div>
-                <div className="actions">
-                    {props.actions}
-                </div>
+                {props.actions === undefined ? 
+                    "" :  
+                    <div className="actions">
+                        {props.actions}
+                    </div>
+                }
             </div>
         </div>,
         document.querySelector('#modal')

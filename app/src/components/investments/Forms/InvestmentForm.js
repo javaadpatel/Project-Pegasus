@@ -52,7 +52,7 @@ class InvestmentForm extends React.Component{
                     step="any"
                     validate={[minValue0]}
                 />
-                <Button loading={this.props.isFetching} className="ui button primary">
+                <Button loading={this.props.isFetching} className="ui button primary" fluid>
                     Invest!
                 </Button>
             </form>
