@@ -20,6 +20,9 @@ export const createInvestmentFromContract = async (managerAddress, formValues) =
     const currentGanacheUnixTimestamp = (await investmentFactoryInstance.getBlockTimestamp()).toNumber();
     const investmentDeadlineUnixTimestamp = moment.unix(currentGanacheUnixTimestamp).add(formValues.deadline, 'd').endOf('day').unix();
     const createdAt = currentGanacheUnixTimestamp;
+    console.log("created at", currentGanacheUnixTimestamp);
+    console.log("deadline at", investmentDeadlineUnixTimestamp);
+
 
     console.log(managerAddress);
     /*Create Investment using UPort*/
@@ -193,6 +196,8 @@ export const extractInvestmentsFromContract_uPort = async (contractAddress) => {
 export const signOpenLawContract_uPort = async (contractAddress, html) => {
     //escape html before saving to contract
     html = _.escape(html);
+    html = "test";
+    console.log(html);
 
     (await createUPortInvestment(contractAddress))
     .signOpenLawContract(

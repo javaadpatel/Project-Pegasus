@@ -135,7 +135,7 @@ class InvestmentShow extends React.Component {
                                     size='large'
                                     centered
                                     rounded 
-                                    src="https://lh3.googleusercontent.com/WTqidDuhtjqN-wYNzavuSe6inAduOwTEE_jkWPgA1AyvMiR0ySsaUwkOa_u0vCRsWdGP=w412-h220-rw" 
+                                    src={require('../../images/house.png')} 
                                 />
                                 <Divider horizontal>Investment Details</Divider>
                                 <Progress 

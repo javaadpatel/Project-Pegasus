@@ -187,7 +187,7 @@ class UPortAuth extends React.Component{
         else if (this.props.isSignedIn){
             return(
                 <Button compact onClick={this.onSignOutClick} className="ui button">
-                    <img src={"./uPort.png"} alt="uPort logo" className="uPortLogo" />
+                    <img src={require('../images/uPort.png')} alt="uPort logo" className="uPortLogo" />
                     Sign Out
                 </Button>
             );
@@ -195,7 +195,7 @@ class UPortAuth extends React.Component{
         else{
             return(
                 <Button compact onClick={this.onSignInClick} className="ui button">
-                    <img src={"./uPort.png"} alt="uPort logo" className="uPortLogo" />
+                    <img src={require('../images/uPort.png')} alt="uPort logo" className="uPortLogo" />
                     Sign In
                 </Button>
             )
