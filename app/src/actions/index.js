@@ -58,7 +58,7 @@ const performAction = async (actionType, actionFunc, dispatch) => {
 
 export const etherScanStatusChecker = (txnHash, funcToDispatch, parameterForDispatch) => async (dispatch) => {
     var timesCalledApi = 0;
-    var maxCallsAllowed = 30; //corresponds to 10 minutes
+    var maxCallsAllowed = 10; //corresponds to 10 minutes
     var etherScanStatusInterval = setInterval(async function (){
         timesCalledApi++;
         console.log(timesCalledApi);

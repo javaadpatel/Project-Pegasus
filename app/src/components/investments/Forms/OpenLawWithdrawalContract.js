@@ -1,6 +1,5 @@
 import React from 'react';
 import {connect} from 'react-redux';
-import _ from 'lodash';
 import {Container, Form,Grid, Button, Image} from 'semantic-ui-react';
 import {compileOpenLawTemplate, previewTemplate} from '../../../ethereum/investmentContract/openlawHelper';
 import {uploadOpenLawContract} from '../../../actions/index';

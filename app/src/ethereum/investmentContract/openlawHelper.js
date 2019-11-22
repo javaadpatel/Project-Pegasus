@@ -50,7 +50,7 @@ export const compileOpenLawTemplate = async () => {
      try{
          //get most recent version of the template that was created by us
          const versions = await apiClient.getTemplateVersions(openLawConfig.templateName, 20, 1);
-         const latestAuthorizedVersion = _.chain(versions).filter({ 'creatorId': openLawConfig.creatorId}).head().value();
+         const latestAuthorizedVersion = _.chain(versions).filter({ 'creatorId': openLawConfig.creatorId}).sortBy((p) => p.timestamp).head().value();
  
          //retrieve the openLaw template by name
          // const myTemplate = await apiClient.getTemplate(openLawConfig.templateName); //testing

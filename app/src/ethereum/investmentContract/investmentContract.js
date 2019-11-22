@@ -8,8 +8,6 @@ import {createInvestment as createInvestmentInstance,
  } from  '../investment';
 import {createInvestmentObject, createInvestmentContributionSummaryObject, 
     checkFailedInvestment, createPaymentObjectsArray} from './contractHelperFunctions';
-import {compileOpenLawTemplate, uploadDraft, previewTemplate} from './openlawHelper';
-
 
 const requiredNumberOfConfirmations = 3;
 
@@ -196,7 +194,6 @@ export const extractInvestmentsFromContract_uPort = async (contractAddress) => {
 export const signOpenLawContract_uPort = async (contractAddress, html) => {
     //escape html before saving to contract
     html = _.escape(html);
-    html = "test";
     console.log(html);
 
     (await createUPortInvestment(contractAddress))

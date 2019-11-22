@@ -1,6 +1,5 @@
 import React from 'react';
 import {connect} from 'react-redux';
-import _ from 'lodash';
 import {fetchInvestment, fetchPayments} from  '../../actions';
 import InvestmentPaymentsTable from  './Tables/InvestmentPaymentsTable';
 import {InvestmentStatusEnum} from  '../../constants';
