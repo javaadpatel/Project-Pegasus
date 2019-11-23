@@ -81,7 +81,7 @@ The investment will then reflect their investment amount and the percentage of t
 ### Investment manager fund withdrawal
 
 <p align="center">
-  <img src="demos_gifs/OpenLawSigning.gif" alt="signing openlaw contract gif" width="600" height="337" />
+  <img src="demos_gifs/OpenlawSigning.gif" alt="signing openlaw contract gif" width="600" height="337" />
 </p>
 
 The platform leverages the decentralized service, [OpenLaw](https://www.openlaw.io/ "OpenLaw Website"), in order to create and enforce legally binding agreements on the blockchain. 
